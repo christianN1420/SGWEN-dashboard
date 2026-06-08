@@ -12,7 +12,7 @@
 <body class="bg-gray-100">
     <div id="root"></div>
 
-    <script type="text/transform-jsx" type="text/babel">
+    <script type="text/babel">
         const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
         /* ================================================================
@@ -106,7 +106,7 @@
         function Card({children}) { return <div className="pcard" style={{background:C.paper, border:`1px solid ${C.line}`, borderRadius:16, padding:20, boxShadow:"0 2px 8px rgba(0,0,0,0.03)"}}>{children}</div>; }
         function SectionHead({num, title, sub}) { return <div style={{borderBottom:`2px solid ${C.orange}`, paddingBottom:10, marginBottom:16}}> <div style={{fontSize:13, fontWeight:800, color:C.orangeDk}}>{num}</div> <h2 style={{fontSize:20, fontWeight:900, color:C.head, margin:0}}>{title}</h2> {sub && <p style={{fontSize:12, color:C.muted, margin:"2px 0 0"}}>{sub}</p>} </div>; }
         function Field({label, value, onChange, placeholder, area, type="text"}) { return <div style={{marginBottom:12, width:"100%"}}> <label style={{display:"block", fontSize:12.5, fontWeight:700, color:C.head, marginBottom:4}}>{label}</label> {area ? <textarea rows={area} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/> : <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/>} </div>; }
-        function Row({children}) { return <div style={{display:"flex", gap:12, flexWrap:300}}>{children}</div>; }
+        function Row({children}) { return <div style={{display:"flex", gap:12, flexWrap:"wrap"}}>{children}</div>; }
         function Th({children, w}) { return <th style={{background:"#F9F7F4", borderBottom:`1px solid ${C.line}`, padding:"8px 10px", textAlign:"start", fontSize:12, fontWeight:700, color:C.muted, width:w}}>{children}</th>; }
         function Td({children, colSpan, w}) { return <td colSpan={colSpan} style={{borderBottom:`1px solid ${C.line}`, padding:4, width:w}}>{children}</td>; }
         function CellInput({v, on, type="text"}) { return <input type={type} value={v||""} onChange={e=>on(e.target.value)} style={{...inp, border:"none", background:"transparent", padding:"5px 6px"}}/>; }
