@@ -453,8 +453,14 @@
             return { perDay, totals, grand };
           }, [camp.program, dayArr]);
 
-          const exportPdf = () => window.print();
-          const newCamp = () => { if (confirm(rtl ? "بدء مخيم جديد فارغ؟ سيُمحى الحالي." : "Start a new blank camp? Current one will be cleared.")) { setCamp(blankCamp()); setActive("def"); } };
+const [printAll, setPrintAll] = useState(false);
+          const exportPdf = () => {
+            setPrintAll(true);
+            setTimeout(() => {
+              window.print();
+              setTimeout(() => setPrintAll(false), 300);
+            }, 200);
+          };          const newCamp = () => { if (confirm(rtl ? "بدء مخيم جديد فارغ؟ سيُمحى الحالي." : "Start a new blank camp? Current one will be cleared.")) { setCamp(blankCamp()); setActive("def"); } };
 
           const saveFile = () => {
             const name = (camp.meta.campName || "camp").replace(/[^\w\u0600-\u06FF-]+/g, "_").slice(0, 40);
@@ -525,22 +531,22 @@
                   {SECTIONS.map(([key, label, num]) => <button key={key} className="navbtn" onClick={() => setActive(key)} style={{ width: "100%", textAlign: rtl ? "right" : "left", border: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, marginBottom: 2, background: active === key ? C.orange : "transparent", color: active === key ? "#fff" : C.ink, fontWeight: active === key ? 800 : 600, fontSize: 13.5 }}><span style={{ fontSize: 12, opacity: .8, minWidth: 22, fontWeight: 900 }}>{num}</span>{STR[label][L]}</button>)}
                 </nav>
 
-                <main className="print-area" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-                  {active === "def" && <DefSection {...ctx} />}
-                  {active === "site" && <SiteSection {...ctx} />}
-                  {active === "sitemap" && <SiteMapSection {...ctx} />}
-                  {active === "database" && <DatabaseSection {...ctx} />}
-                  {active === "objectives" && <ObjectivesSection {...ctx} />}
-                  {active === "program" && <ProgramSection {...ctx} />}
-                  {active === "food" && <FoodSection {...ctx} />}
-                  {active === "gear" && <GearSection {...ctx} />}
-                  {active === "firstaid" && <FirstAidSection {...ctx} />}
-                  {active === "budget" && <BudgetSection {...ctx} />}
-                  {active === "vision" && <VisionSection {...ctx} />}
-                  {active === "discuss" && <DiscussSection {...ctx} />}
-                  {active === "permits" && <PermitsSection {...ctx} />}
-                  {active === "expenses" && <ExpensesSection {...ctx} />}
-                  {active === "evalS" && <EvalSection {...ctx} />}
+          <main className="print-area" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                  {(printAll || active === "def") && <DefSection {...ctx} />}
+                  {(printAll || active === "site") && <SiteSection {...ctx} />}
+                  {(printAll || active === "sitemap") && <SiteMapSection {...ctx} />}
+                  {(printAll || active === "database") && <DatabaseSection {...ctx} />}
+                  {(printAll || active === "objectives") && <ObjectivesSection {...ctx} />}
+                  {(printAll || active === "program") && <ProgramSection {...ctx} />}
+                  {(printAll || active === "food") && <FoodSection {...ctx} />}
+                  {(printAll || active === "gear") && <GearSection {...ctx} />}
+                  {(printAll || active === "firstaid") && <FirstAidSection {...ctx} />}
+                  {(printAll || active === "budget") && <BudgetSection {...ctx} />}
+                  {(printAll || active === "vision") && <VisionSection {...ctx} />}
+                  {(printAll || active === "discuss") && <DiscussSection {...ctx} />}
+                  {(printAll || active === "permits") && <PermitsSection {...ctx} />}
+                  {(printAll || active === "expenses") && <ExpensesSection {...ctx} />}
+                  {(printAll || active === "evalS") && <EvalSection {...ctx} />}
 
                   <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
                     <div style={{ display: "inline-block", paddingTop: 4, color: C.credit, fontSize: 10, fontWeight: 400, letterSpacing: ".2px", opacity: .65 }}>By: VIIème Groupe — Chef Christian Nachaat</div>
