@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGWEN — كتيّب المخيمات الرقمي</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+
+    <script type="text/transform-jsx" type="text/babel">
+        const { useState, useMemo, useCallback, useEffect, useRef } = React;
+
+        /* ================================================================
+           SGWEN — كتيّب المخيمات الرقمي / Digital Camp Booklet
+           Scouts & Guides Wadi El Nil
+           ================================================================ */
+
+        const C = {
+          orange: "#F7941E", orangeDk: "#ED7117", orangeSoft: "#FCEBD6",
+          ink: "#46464B", head: "#404044", paper: "#FFFFFF", line: "#EAE5DD",
+          muted: "#9A958C", ok: "#3FA66A", bad: "#D9534F", warn: "#E0922F", credit: "#5A4631",
+        };
+
+        const uid = () => Math.random().toString(36).slice(2, 9);
+        const fmt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString("en-EG");
+        const diffMins = (a, b) => { const p = (t) => { const [h, m] = String(t).split(":").map(Number); return h * 60 + (m || 0); }; let d = p(b) - p(a); if (d < 0) d += 1440; return d; };
+        function ageFromDOB(dob) { if (!dob) return ""; const d = new Date(dob); if (isNaN(d)) return ""; const now = new Date(); let m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()); if (now.getDate() < d.getDate()) m -= 1; if (m < 0) return ""; return (m / 12).toFixed(1); }
+
+        const STR = {
+          appTitle: ["كتيّب المخيمات", "Camp Booklet"],
+          org: ["كشافة و مرشدات وادي النيل — هيئة التدريب", "Scouts & Guides Wadi El Nil — Training Authority"],
+          draftBadge: ["مسودة", "DRAFT"],
+          exportPdf: ["تصدير PDF", "Export PDF"],
+          saved: ["محفوظ تلقائيًا ✓", "Auto-saved ✓"],
+          saveFile: ["حفظ ملف", "Save file"],
+          loadFile: ["فتح ملف", "Load file"],
+          newCamp: ["مخيم جديد", "New camp"],
+          addRow: ["+ صف جديد", "+ Add row"],
+          days: ["الأيام", "Days"],
+          def: ["التعريف", "Definition"], site: ["بيانات أرض المخيم", "Site Data"],
+          sitemap: ["رسم الأرض و المنشآت", "Site Map"], database: ["قاعدة البيانات", "Database (Roster)"],
+          objectives: ["الأهداف", "Objectives"], program: ["برنامج المخيم", "Camp Program"],
+          food: ["برنامج الأكل", "Meal Program"], gear: ["العتاد", "Gear"],
+          firstaid: ["الإسعافات و الأمان", "First-Aid & Safety"], budget: ["الميزانية", "Budget"],
+          vision: ["التصور العام", "General Vision"], discuss: ["المناقشات و الاعتماد", "Discussion & Approval"],
+          permits: ["تصاريح", "Permits"], expenses: ["المصروفات", "Expenses"], evalS: ["تقييم المخيم", "Camp Evaluation"],
+        };
+
+        const GEAR_DEFAULT = () => ({
+          "معدات القداس الإلهي": ["ملابس كاهن", "لوازم الهيكل", "كتب مقدسة - كتب ترانيم"],
+          "معدات النظافة": ["أواني للغسيل والشطف", "صابون سائل أو بودرة", "لوف – سلك", "مقص وقاطع حاد"],
+          "معدات المبيت": ["خيمة كاملة بالفراش والصواري والأوتاد", "دقماق", "حبال", "عصي للمنشآت", "مظلة قماش", "كشاف إضاءة"],
+          "معدات الطبخ": ["حلة", "طاسة", "صينية", "مصفاة", "مغرفة", "بوتاجاز و أنبوبة", "شوال خشب", "صفيحة توضع تحت النار", "كبريت", "فتاحة معلبات", "شاش لتغطية الطعام", "جيركن جاز", "بلطة"],
+          "الأعلام": ["علم الجمهورية", "علم الاتحاد العام للكشافة", "علم فتيان الكشافة / المرشدات", "علم وادي النيل", "علم المجموعة", "علم القائد العام", "لوازم الصاري (عصي – حبال)", "بكرة", "الطوطم"],
+          "معدات أخرى": ["بروجي", "بوصلة", "خريطة للمكان", "بروجكتور – كمبيوتر", "ورق مقوى - أقلام", "دعاوي لحفل السمر", "تذكار أو هدايا", "مواد لاصقة", "دبابيس رسم", "إبر خياطة", "آلة تصوير", "Markers + Whiteboard", "بطارية جافة", "قماش لعصا حارس النار", "منبه"],
+        });
+        const FIRSTAID_DEFAULT = () => ["بيتادين", "شاش", "شاش فازلين", "قطن", "Alcohol Swab (ماسح كحول)", "مقص", "ملقط", "بلاستر بكرة", "بلاستر عادي", "بلاستر waterproof", "رباط ضاغط", "ترمومتر", "جوانتي طبي", "Burnazin للحروق", "Hemoclar للكدمات والالتواءات", "Fucicort مضاد حيوي", "Kenacomb للتسلخات", "Ventolin بخاخة", "كمادات جل"];
+
+        const BUDGET_LINES = [
+          ["activities", "التكلفة المتوقعة للفقرات", "Activities cost"],
+          ["food", "التكلفة المتوقعة للأكل", "Food cost"],
+          ["gear", "التكلفة المتوقعة للعتاد", "Gear cost"],
+          ["firstaid", "التكلفة المتوقعة للإسعافات و الأمان", "First-aid & safety cost"],
+          ["prepTransport", "انتقالات إعداد المخيم", "Prep transport"],
+          ["roundTransport", "انتقالات المخيمين (ذهاب وإياب)", "Campers transport (round)"],
+          ["duringTransport", "انتقالات أثناء المخيم", "On-site transport"],
+          ["venue", "حجز أرض المخيم", "Venue booking"],
+          ["petty", "نثريات", "Petty"],
+          ["other", "مصروفات أخرى", "Other"],
+        ];
+        const DB_PRELANE = [["kader", "الكادر", "Cadre"], ["afrad", "أفراد", "Members"]];
+        const ACT_TYPES = [["deeni", "ديني", "Spiritual", "#7C5CBF"], ["kashfi", "كشفي", "Scouting", "#2F8FB3"], ["tarfihi", "ترفيهي", "Recreational", "#F7941E"], ["thaqafi", "ثقافي", "Cultural", "#C2603C"], ["ibdaai", "إبداعي", "Creative", "#3FA66A"], ["riyadi", "رياضي", "Physical", "#D9534F"]];
+        const MEAL_SLOTS = [["breakfast", "وجبة الإفطار", "Breakfast"], ["snack1", "وجبة خفيفة", "Light snack"], ["lunch", "وجبة الغداء", "Lunch"], ["snack2", "وجبة خفيفة", "Light snack"], ["dinner", "وجبة العشاء", "Dinner"]];
+        const APPROVAL_CHAIN = [["unit", "قائد/ة الوحدة", "Unit Leader"], ["groupSafety", "مسؤول الأمان بالمجموعة", "Group Safety Officer"], ["group", "قائد/ة المجموعة", "Group Leader"], ["division", "قائد/ة الشعبة", "Division Leader"], ["region", "قائد/ة المنطقة", "Region Leader"], ["training", "قائد/ة التدريب", "Training Leader"], ["general", "القائد العام", "General Leader"]];
+        const SECTIONS = [["def", "def", "١"], ["site", "site", "٢"], ["sitemap", "sitemap", "٣"], ["database", "database", "٤"], ["objectives", "objectives", "٥"], ["program", "program", "٦"], ["food", "food", "٧"], ["gear", "gear", "٨"], ["firstaid", "firstaid", "٩"], ["budget", "budget", "١٠"], ["vision", "vision", "١١"], ["discuss", "discuss", "١٢"], ["permits", "permits", "١٣"], ["expenses", "expenses", "١٤"], ["evalS", "evalS", "١٥"]];
+
+        const inp = { width: "100%", padding: "6px 10px", border: `1px solid ${C.line}`, borderRadius: 8, background: "#fff", fontFamily: "inherit", color: C.ink, outline: "none" };
+        const tbl = { width: "100%", borderCollapse: "collapse", fontSize: 13.5 };
+        
+        function blankCamp() {
+          return {
+            meta: { campName: "", unit: "", group: "VII", isOneDay: false, dateFrom: "", dateTo: "", days: 4, headcountOverride: "" },
+            def: { type: "", explainTheme: "", scoring: "" },
+            site: { address: "", contactName: "", contactPhone: "", description: "", difficulties: "", transport: "", service: "", souq: "", bakery: "", pharmacy: "", hospital: "", police: "", fire: "", mobile: true },
+            sitemap: { land: "", structures: "", other: "" },
+            db: [],
+            objectives: { prevNotes: "", rows: [{ id: uid(), goal: "", explain: "", means: "", measure: "" }], explainGoals: "", means: "" },
+            program: {},
+            food: {},
+            gear: (() => { const g = {}; Object.entries(GEAR_DEFAULT()).forEach(([cat, items]) => { g[cat] = items.map((n) => ({ id: uid(), name: n, qty: "", buy: false, check: false })); }); return g; })(),
+            firstaid: FIRSTAID_DEFAULT().map((n) => ({ id: uid(), name: n, qty: "", buy: false, check: false })),
+            budget: { activities: "", food: "", gear: "", firstaid: "", prepTransport: "", roundTransport: "", duringTransport: "", venue: "", petty: "", other: "", emergency: "" },
+            discuss: {},
+            supreme: { name: "", title: "", signed: "", date: "", note: "" },
+            expenses: [{ id: uid(), date: "", item: "", amount: "" }],
+            evalNotes: { programChange: "", budgetChange: "", transport: "", incidents: "", goalScore: "", siteScore: "", security: "", positives: "", negatives: "", other: "" },
+          };
+        }
+
+        function Logo() { return <div style={{width:32, height:32, borderRadius:8, background:C.orange, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, color:"#fff"}}>V</div>; }
+        function Card({children}) { return <div className="pcard" style={{background:C.paper, border:`1px solid ${C.line}`, borderRadius:16, padding:20, boxShadow:"0 2px 8px rgba(0,0,0,0.03)"}}>{children}</div>; }
+        function SectionHead({num, title, sub}) { return <div style={{borderBottom:`2px solid ${C.orange}`, paddingBottom:10, marginBottom:16}}> <div style={{fontSize:13, fontWeight:800, color:C.orangeDk}}>{num}</div> <h2 style={{fontSize:20, fontWeight:900, color:C.head, margin:0}}>{title}</h2> {sub && <p style={{fontSize:12, color:C.muted, margin:"2px 0 0"}}>{sub}</p>} </div>; }
+        function Field({label, value, onChange, placeholder, area, type="text"}) { return <div style={{marginBottom:12, width:"100%"}}> <label style={{display:"block", fontSize:12.5, fontWeight:700, color:C.head, marginBottom:4}}>{label}</label> {area ? <textarea rows={area} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/> : <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/>} </div>; }
+        function Row({children}) { return <div style={{display:"flex", gap:12, flexWrap:300}}>{children}</div>; }
+        function Th({children, w}) { return <th style={{background:"#F9F7F4", borderBottom:`1px solid ${C.line}`, padding:"8px 10px", textAlign:"start", fontSize:12, fontWeight:700, color:C.muted, width:w}}>{children}</th>; }
+        function Td({children, colSpan, w}) { return <td colSpan={colSpan} style={{borderBottom:`1px solid ${C.line}`, padding:4, width:w}}>{children}</td>; }
+        function CellInput({v, on, type="text"}) { return <input type={type} value={v||""} onChange={e=>on(e.target.value)} style={{...inp, border:"none", background:"transparent", padding:"5px 6px"}}/>; }
+        function DelBtn({onClick}) { return <button onClick={onClick} style={{border:"none", background:"transparent", color:C.bad, cursor:"pointer", fontSize:16, fontWeight:800, padding:"4px 8px"}}>×</button>; }
+        function Btn({children, kind, small, onClick}) {
+          let bg=C.orange, co="#fff", bo="none";
+          if(kind==="line") { bg="transparent"; co=C.orangeDk; bo=`1px solid ${C.orange}`; }
+          if(kind==="ghost") { bg="transparent"; co=C.ink; }
+          if(kind==="dk") { bg=C.ink; co="#fff"; }
+          return <button onClick={onClick} style={{border:bo, background:bg, color:co, borderRadius:8, cursor:"pointer", padding:small?"5px 12px":"8px 20px", fontSize:small?12.5:14, fontWeight:700, fontFamily:"inherit"}}>{children}</button>;
+        }
+        function MetaInput({label, v, on, type="text", w}) { return <div style={{width:w||"auto", minWidth:120}}> <div style={{fontSize:11, color:C.muted, fontWeight:700, marginBottom:3}}>{label}</div> <input type={type} value={v||""} onChange={e=>on(e.target.value)} style={{...inp, padding:"6px 10px", fontSize:13}}/> </div>; }
+        function Inline({v, on, ph, w}) { return <input type="text" value={v||""} onChange={e=>on(e.target.value)} placeholder={ph} style={{...inp, width:w, padding:"5px 10px", fontSize:13}}/>; }
+
+        function DefSection({ camp, set, rtl, L }) {
+          return (<Card><SectionHead num="١" title={rtl ? "التعريف" : "Definition"} sub={rtl ? "نوع المخيم و فكرته العامة" : "Camp type & general idea"} />
+            <Field lang={L} label={rtl ? "هذا المخيم هو مخيم..." : "This camp is a..."} value={camp.def.type} onChange={(x) => set("def.type", x)} placeholder={rtl ? "مخيم مجموعة / وحدة / تدريب ..." : "group / unit / training camp ..."} />
+            <Field lang={L} label={rtl ? "شرح فكرة المخيم العامة (Theme)" : "General theme / idea"} value={camp.def.explainTheme} onChange={(x) => set("def.explainTheme", x)} area={4} />
+            <Field lang={L} label={rtl ? "نظام النقاط (Scoring System)" : "Scoring system"} value={camp.def.scoring} onChange={(x) => set("def.scoring", x)} area={3} />
+          </Card>);
+        }
+
+        function SiteSection({ camp, set, rtl, L }) {
+          const v = camp.site;
+          const near = [["souq", "أقرب سوق", "Nearest market"], ["bakery", "أقرب مخبز", "Nearest bakery"], ["pharmacy", "أقرب صيدلية", "Nearest pharmacy"], ["hospital", "أقرب مستشفى", "Nearest hospital"], ["police", "أقرب قسم شرطة", "Nearest police"], ["fire", "أقرب مطافئ", "Nearest fire"]];
+          return (<Card><SectionHead num="٢" title={rtl ? "بيانات عن مكان التخييم" : "Camp Site Data"} />
+            <Field lang={L} label={rtl ? "العنوان" : "Address"} value={v.address} onChange={(x) => set("site.address", x)} />
+            <Row><Field lang={L} label={rtl ? "المسؤول عن المكان" : "Site contact"} value={v.contactName} onChange={(x) => set("site.contactName", x)} /><Field lang={L} label={rtl ? "تليفون المسؤول" : "Contact phone"} value={v.contactPhone} onChange={(x) => set("site.contactPhone", x)} /></Row>
+            <Field lang={L} label={rtl ? "وصف المكان (نوع الأرض/الاتساع/سهولة المعيشة)" : "Site description"} value={v.description} onChange={(x) => set("site.description", x)} area={3} />
+            <Field lang={L} label={rtl ? "الصعوبات" : "Difficulties"} value={v.difficulties} onChange={(x) => set("site.difficulties", x)} area={2} />
+            <Field lang={L} label={rtl ? "طريقة الانتقال" : "Transport method"} value={v.transport} onChange={(x) => set("site.transport", x)} area={2} />
+            <Field lang={L} label={rtl ? "الخدمة التي يمكن تقديمها أثناء المخيم" : "Service possible during camp"} value={v.service} onChange={(x) => set("site.service", x)} />
+            <div style={{ fontWeight: 800, color: C.head, margin: "8px 0 6px" }}>{rtl ? "عناوين و أرقام مفيدة" : "Useful addresses & numbers"}</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{near.map(([k, ar, en]) => <div key={k} style={{ flex: "1 1 210px" }}><Field lang={L} label={rtl ? ar : en} value={v[k]} onChange={(x) => set(`site.${k}`, x)} placeholder={rtl ? "المكان — الزمن" : "place — time"} /></div>)}</div>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}><input type="checkbox" checked={!!v.mobile} onChange={(e) => set("site.mobile", e.target.checked)} style={{ width: 18, height: 18, accentColor: C.orange }} />{rtl ? "المكان مغطى بشبكات المحمول" : "Site has mobile coverage"}</label>
+          </Card>);
+        }
+
+        function SiteMapSection({ camp, set, rtl, L }) {
+          return (<Card><SectionHead num="٣" title={rtl ? "رسم الأرض و المنشآت" : "Site Map & Structures"} sub={rtl ? "صِف أو الصق روابط صور الرسومات" : "Describe or paste image links"} />
+            <Field lang={L} label={rtl ? "رسومات أرض المخيم" : "Camp land drawings"} value={camp.sitemap.land} onChange={(x) => set("sitemap.land", x)} area={3} placeholder={rtl ? "وصف / رابط صورة" : "description / image link"} />
+            <Field lang={L} label={rtl ? "رسومات المنشآت" : "Structures drawings"} value={camp.sitemap.structures} onChange={(x) => set("sitemap.structures", x)} area={3} />
+            <Field lang={L} label={rtl ? "رسومات / خرائط أخرى" : "Other drawings / maps"} value={camp.sitemap.other} onChange={(x) => set("sitemap.other", x)} area={3} />
+          </Card>);
+        }
+
+        function DatabaseSection({ camp, set, rtl, autoHead }) {
+          const rows = camp.db;
+          const add = (lane) => set("db", [...rows, { id: uid(), lane, rank: "", name: "", dob: "", nid: "", blood: "", address: "", phone: "", health: "", landline: "", father: "", fatherPhone: "", mother: "", motherPhone: "" }]);
+          const setRow = (id, f, v) => set("db", rows.map((r) => r.id === id ? { ...r, [f]: v } : r));
+          const del = (id) => set("db", rows.filter((r) => r.id !== id));
+          return (<Card><SectionHead num="٤" title={rtl ? "قاعدة البيانات — القادة و الأفراد" : "Database — Leaders & Members"} sub={rtl ? `العدد محسوب تلقائيًا = ${autoHead} · السن يُحسب من تاريخ الميلاد` : `Headcount auto = ${autoHead} · age auto from DOB`} />
+            {DB_PRELANE.map(([lane, ar, en]) => { const laneRows = rows.filter((r) => r.lane === lane); return (
+              <div key={lane} style={{ marginBottom: 18 }}>
+                <div style={{ background: C.orange, color: "#fff", fontWeight: 800, padding: "7px 12px", borderRadius: "9px 9px 0 0" }}>{rtl ? ar : en} <span style={{ opacity: .8, fontWeight: 600 }}>({laneRows.length})</span></div>
+                <div style={{ overflowX: "auto", border: `1px solid ${C.line}`, borderTop: "none", borderRadius: "0 0 9px 9px" }}>
+                  <table style={{ ...tbl, minWidth: 1200 }}><thead><tr>
+                    <Th w={90}>{rtl ? "الرتبة" : "Rank"}</Th><Th w={150}>{rtl ? "الاسم رباعي" : "Full name"}</Th><Th w={120}>{rtl ? "تاريخ الميلاد" : "DOB"}</Th><Th w={60}>{rtl ? "السن" : "Age"}</Th><Th w={140}>{rtl ? "الرقم القومي" : "National ID"}</Th><Th w={70}>{rtl ? "الدم" : "Blood"}</Th><Th w={150}>{rtl ? "العنوان" : "Address"}</Th><Th w={110}>{rtl ? "المحمول" : "Mobile"}</Th><Th w={120}>{rtl ? "الحالة الصحية" : "Health"}</Th><Th w={110}>{rtl ? "اسم الأب" : "Father"}</Th><Th w={110}>{rtl ? "محمول الأب" : "Father ph."}</Th><Th w={110}>{rtl ? "اسم الأم" : "Mother"}</Th><Th w={110}>{rtl ? "محمول الأم" : "Mother ph."}</Th><Th w={34}></Th>
+                  </tr></thead><tbody>
+                    {laneRows.length === 0 && <tr><Td colSpan={14}><span style={{ color: C.muted, fontSize: 12 }}>{rtl ? "فارغ — أضف صفًا" : "Empty — add a row"}</span></Td></tr>}
+                    {laneRows.map((r) => <tr key={r.id}>
+                      <Td w={90}><CellInput v={r.rank} on={(x) => setRow(r.id, "rank", x)} /></Td>
+                      <Td w={150}><CellInput v={r.name} on={(x) => setRow(r.id, "name", x)} /></Td>
+                      <Td w={120}><CellInput type="date" v={r.dob} on={(x) => setRow(r.id, "dob", x)} /></Td>
+                      <Td w={60}><span style={{ fontSize: 13, fontWeight: 800, color: C.orangeDk, padding: "0 6px" }}>{ageFromDOB(r.dob) || "—"}</span></Td>
+                      <Td w={140}><CellInput v={r.nid} on={(x) => setRow(r.id, "nid", x)} /></Td>
+                      <Td w={70}><CellInput v={r.blood} on={(x) => setRow(r.id, "blood", x)} /></Td>
+                      <Td w={150}><CellInput v={r.address} on={(x) => setRow(r.id, "address", x)} /></Td>
+                      <Td w={110}><CellInput v={r.phone} on={(x) => setRow(r.id, "phone", x)} /></Td>
+                      <Td w={120}><CellInput v={r.health} on={(x) => setRow(r.id, "health", x)} /></Td>
+                      <Td w={110}><CellInput v={r.father} on={(x) => setRow(r.id, "father", x)} /></Td>
+                      <Td w={110}><CellInput v={r.fatherPhone} on={(x) => setRow(r.id, "fatherPhone", x)} /></Td>
+                      <Td w={110}><CellInput v={r.mother} on={(x) => setRow(r.id, "mother", x)} /></Td>
+                      <Td w={110}><CellInput v={r.motherPhone} on={(x) => setRow(r.id, "motherPhone", x)} /></Td>
+                      <Td w={34}><DelBtn onClick={() => del(r.id)} /></Td>
+                    </tr>)}
+                  </tbody></table>
+                </div>
+                <div style={{ marginTop: 6 }}><Btn kind="ghost" small onClick={() => add(lane)}>{rtl ? `+ إضافة (${ar})` : `+ Add ${en}`}</Btn></div>
+              </div>
+            ); })}
+          </Card>);
+        }
+
+        function ObjectivesSection({ camp, set, rtl, L }) {
+          const o = camp.objectives;
+          const setRow = (id, f, v) => set("objectives.rows", o.rows.map((x) => x.id === id ? { ...x, [f]: v } : x));
+          return (<Card><SectionHead num="٥" title={rtl ? "الأهداف" : "Objectives"} />
+            <Field lang={L} label={rtl ? "تقييم و ملاحظات المخيمات السابقة" : "Previous-camp notes"} value={o.prevNotes} onChange={(x) => set("objectives.prevNotes", x)} area={3} />
+            <div style={{ fontWeight: 800, color: C.head, margin: "8px 0 6px" }}>{rtl ? "أهداف المخيم" : "Camp objectives"}</div>
+            <div style={{ overflowX: "auto" }}><table style={{ ...tbl, minWidth: 760 }}><thead><tr><Th>{rtl ? "الهدف" : "Goal"}</Th><Th>{rtl ? "شرح الهدف" : "Explanation"}</Th><Th>{rtl ? "وسيلة التحقيق" : "Means"}</Th><Th>{rtl ? "كيفية قياسه" : "Measure"}</Th><Th w={34}></Th></tr></thead>
+              <tbody>{o.rows.map((x) => <tr key={x.id}><Td><CellInput v={x.goal} on={(v) => setRow(x.id, "goal", v)} /></Td><Td><CellInput v={x.explain} on={(v) => setRow(x.id, "explain", v)} /></Td><Td><CellInput v={x.means} on={(v) => setRow(x.id, "means", v)} /></Td><Td><CellInput v={x.measure} on={(v) => setRow(x.id, "measure", v)} /></Td><Td w={34}><DelBtn onClick={() => set("objectives.rows", o.rows.filter((r) => r.id !== x.id))} /></Td></tr>)}</tbody>
+            </table></div>
+            <div style={{ marginTop: 8 }}><Btn kind="ghost" small onClick={() => set("objectives.rows", [...o.rows, { id: uid(), goal: "", explain: "", means: "", measure: "" }])}>{STR.addRow[L]}</Btn></div>
+            <div style={{ marginTop: 14 }}><Field lang={L} label={rtl ? "شرح أهداف المخيم" : "Explanation of goals"} value={o.explainGoals} onChange={(x) => set("objectives.explainGoals", x)} area={3} /><Field lang={L} label={rtl ? "الوسائل" : "Means"} value={o.means} onChange={(x) => set("objectives.means", x)} area={3} /></div>
+          </Card>);
+        }
+
+        function ProgramSection({ camp, set, rtl, dayArr }) {
+          const getDay = (d) => camp.program[d] || { leaderOfDay: "", place: "", items: [], eval: { changed: "", score: "", positives: "", negatives: "" } };
+          const upd = (d, day) => set(`program.${d}`, day);
+          const addItem = (d) => { const day = getDay(d); upd(d, { ...day, items: [...day.items, { id: uid(), from: "", to: "", type: "", activity: "", executor: "", goal: "", means: "", needs: "", cost: "", notes: "", planB: "" }] }); };
+          const setItem = (d, id, f, v) => { const day = getDay(d); upd(d, { ...day, items: day.items.map((it) => it.id === id ? { ...it, [f]: v } : it) }); };
+          const delItem = (d, id) => { const day = getDay(d); upd(d, { ...day, items: day.items.filter((it) => it.id !== id) }); };
+          return (<Card><SectionHead num="٦" title={rtl ? "برنامج المخيم" : "Camp Program"} sub={rtl ? `${dayArr.length} يوم — النوع يُغذّي التصور العام` : `${dayArr.length} days — type feeds the General Vision`} />
+            {dayArr.map((d) => { const day = getDay(d); return (
+              <div key={d} style={{ marginBottom: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}><span style={{ background: C.orangeDk, color: "#fff", fontWeight: 900, padding: "5px 14px", borderRadius: 9 }}>{rtl ? `اليوم ${d}` : `Day ${d}`}</span><Inline v={day.leaderOfDay} on={(x) => upd(d, { ...day, leaderOfDay: x })} ph={rtl ? "قائد اليوم" : "Leader of day"} w={180} /><Inline v={day.place} on={(x) => upd(d, { ...day, place: x })} ph={rtl ? "المكان" : "Place"} w={160} /></div>
+                <div style={{ overflowX: "auto", border: `1px solid ${C.line}`, borderRadius: 10 }}>
+                  <table style={{ ...tbl, minWidth: 1100 }}><thead><tr><Th w={66}>{rtl ? "من" : "From"}</Th><Th w={66}>{rtl ? "إلى" : "To"}</Th><Th w={104}>{rtl ? "النوع" : "Type"}</Th><Th>{rtl ? "الفقرة" : "Activity"}</Th><Th w={110}>{rtl ? "المنفذ" : "Executor"}</Th><Th>{rtl ? "الهدف" : "Goal"}</Th><Th>{rtl ? "الوسيلة" : "Means"}</Th><Th>{rtl ? "الاحتياجات" : "Needs"}</Th><Th w={90}>{rtl ? "التكلفة" : "Cost"}</Th><Th>{rtl ? "ملاحظات / Plan B" : "Notes / Plan B"}</Th><Th w={34}></Th></tr></thead>
+                    <tbody>
+                      {day.items.length === 0 && <tr><Td colSpan={11}><span style={{ color: C.muted, fontSize: 12 }}>{rtl ? "لا فقرات" : "No blocks"}</span></Td></tr>}
+                      {day.items.map((it) => { const at = ACT_TYPES.find((a) => a[0] === it.type); return (<tr key={it.id} style={at ? { boxShadow: `inset 4px 0 0 ${at[3]}` } : {}}>
+                        <Td w={66}><CellInput type="time" v={it.from} on={(x) => setItem(d, it.id, "from", x)} /></Td>
+                        <Td w={66}><CellInput type="time" v={it.to} on={(x) => setItem(d, it.id, "to", x)} /></Td>
+                        <Td w={104}><select value={it.type} onChange={(e) => setItem(d, it.id, "type", e.target.value)} style={{ ...inp, padding: "7px 4px", fontSize: 12 }}><option value="">—</option>{ACT_TYPES.map(([k, ar, en]) => <option key={k} value={k}>{rtl ? ar : en}</option>)}</select></Td>
+                        <Td><CellInput v={it.activity} on={(x) => setItem(d, it.id, "activity", x)} /></Td>
+                        <Td w={110}><CellInput v={it.executor} on={(x) => setItem(d, it.id, "executor", x)} /></Td>
+                        <Td><CellInput v={it.goal} on={(x) => setItem(d, it.id, "goal", x)} /></Td>
+                        <Td><CellInput v={it.means} on={(x) => setItem(d, it.id, "means", x)} /></Td>
+                        <Td><CellInput v={it.needs} on={(x) => setItem(d, it.id, "needs", x)} /></Td>
+                        <Td w={90}><CellInput type="number" v={it.cost} on={(x) => setItem(d, it.id, "cost", x)} /></Td>
+                        <Td><CellInput v={it.notes} on={(x) => setItem(d, it.id, "notes", x)} /></Td>
+                        <Td w={34}><DelBtn onClick={() => delItem(d, it.id)} /></Td>
+                      </tr>); })}
+                    </tbody></table>
+                </div>
+                <div style={{ marginTop: 6 }}><Btn kind="ghost" small onClick={() => addItem(d)}>{rtl ? "+ إضافة فقرة" : "+ Add row"}</Btn></div>
+              </div>
+            ); })}
+          </Card>);
+        }
+
+        function FoodSection({ camp, set, rtl, dayArr }) {
+          const getFood = (d) => camp.food[d] || {};
+          const addMeal = (d, slot) => {
+            const fd = getFood(d); const current = fd[slot] || [];
+            set(`food.${d}.${slot}`, [...current, { id: uid(), item: "", qty: "", cost: "" }]);
+          };
+          return (<Card><SectionHead num="٧" title={rtl ? "برنامج الأكل" : "Meal Program"} /></Card>);
+        }
+
+        function GearSection({ camp, set, rtl }) {
+          const g = camp.gear || {};
+          const checkAll = (cat, field, val) => {
+            set(`gear.${cat}`, (g[cat]||[]).map(r => ({...r, [field]: val})));
+          };
+          return (<Card><SectionHead num="٨" title={rtl ? "العتاد و التجهيزات" : "Gear Roster"} />
+            {Object.entries(g).map(([cat, items]) => (
+              <div key={cat} style={{marginBottom:16}}>
+                <div style={{fontWeight:800, color:C.head, marginBottom:6, display:"flex", justifyContent:"space-between"}}>
+                  <span>{cat}</span>
+                  <div style={{fontSize:11, display:"flex", gap:8}}>
+                    <button onClick={()=>checkAll(cat, "check", true)} style={{background:"none", border:"none", color:C.orange, cursor:"pointer"}}>{rtl?"تحديد الكل":"Check all"}</button>
+                  </div>
+                </div>
+                <table style={tbl}><tbody>
+                  {items.map((r, idx) => (
+                    <tr key={r.id}>
+                      <td style={{width:30}}><input type="checkbox" checked={!!r.check} onChange={e=>set(`gear.${cat}.${idx}.check`, e.target.checked)} style={{accentColor:C.orange}} /></td>
+                      <td>{r.name}</td>
+                      <td style={{width:100}}><input type="text" placeholder={rtl?"الكمية":"Qty"} value={r.qty||""} onChange={e=>set(`gear.${cat}.${idx}.qty`, e.target.value)} style={{...inp, padding:"2px 6px"}} /></td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            ))}
+          </Card>);
+        }
+
+        function FirstAidSection({ camp, set, rtl }) {
+          const fa = camp.firstaid || [];
+          return (<Card><SectionHead num="٩" title={rtl ? "الإسعافات الأولية والأمان" : "First Aid & Safety"} />
+            <table style={tbl}><tbody>
+              {fa.map((r, idx) => (
+                <tr key={r.id}>
+                  <td style={{width:30}}><input type="checkbox" checked={!!r.check} onChange={e=>set(`firstaid.${idx}.check`, e.target.checked)} style={{accentColor:C.orange}} /></td>
+                  <td>{r.name}</td>
+                  <td style={{width:100}}><input type="text" placeholder={rtl?"الكمية":"Qty"} value={r.qty||""} onChange={e=>set(`firstaid.${idx}.qty`, e.target.value)} style={{...inp, padding:"2px 6px"}} /></td>
+                </tr>
+              ))}
+            </tbody></table>
+          </Card>);
+        }
+
+        function BudgetSection({ camp, set, rtl, budget, headcount }) {
+          return (<Card><SectionHead num="١٠" title={rtl ? "الميزانية المتوقعة" : "Budget Planning"} sub={rtl ? `حساب المجموع لكل فرد تلقائيًا بناءً على العدد الحالي (${headcount})` : `Per-person calculations automated based on headcount (${headcount})`} />
+            <div style={{display:"flex", gap:16, flexWrap:"wrap", marginBottom:16}}>
+              <div style={{background:C.orangeSoft, padding:14, borderRadius:12, flex:1, minWidth:150}}>
+                <div style={{fontSize:11, color:C.muted, fontWeight:700}}>{rtl?"إجمالي المصروفات":"Total Expenses"}</div>
+                <div style={{fontSize:22, fontWeight:900, color:C.orangeDk}}>{fmt(budget.totalExpenses)} EGP</div>
+              </div>
+              <div style={{background:"#EBF7EE", padding:14, borderRadius:12, flex:1, minWidth:150}}>
+                <div style={{fontSize:11, color:C.muted, fontWeight:700}}>{rtl?"التكلفة للفرد":"Cost Per Camper"}</div>
+                <div style={{fontSize:22, fontWeight:900, color:C.ok}}>{fmt(budget.perPerson)} EGP</div>
+              </div>
+            </div>
+            {BUDGET_LINES.map(([k, ar, en]) => (
+              <Field key={k} type="number" label={rtl ? ar : en} value={camp.budget[k]} onChange={x => set(`budget.${k}`, x)} />
+            ))}
+          </Card>);
+        }
+
+        function VisionSection({ rtl, vision }) {
+          return (<Card><SectionHead num="١١" title={rtl ? "التصور العام والنسب" : "General Vision Dashboard"} />
+            <div style={{fontSize:13, fontWeight:700, marginBottom:10}}>{rtl ? "توزيع الأنشطة الزمني بالدقائق:" : "Time distribution of activities (minutes):"}</div>
+            {ACT_TYPES.map(([k, ar, en, color]) => {
+              const mins = vision.totals[k] || 0;
+              const pct = vision.grand > 0 ? ((mins / vision.grand) * 100).toFixed(1) : 0;
+              return (
+                <div key={k} style={{marginBottom:10}}>
+                  <div style={{display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:700}}>
+                    <span>{rtl?ar:en}</span>
+                    <span>{mins} {rtl?"دقيقة":"mins"} ({pct}%)</span>
+                  </div>
+                  <div style={{width:"100%", background:"#EEE", height:10, borderRadius:5, overflow:"hidden", marginTop:4}}>
+                    <div style={{width:`${pct}%`, background:color, height:"100%"}} />
+                  </div>
+                </div>
+              );
+            })}
+          </Card>);
+        }
+
+        function DiscussSection({ camp, set, rtl }) {
+          return (<Card><SectionHead num="١٢" title={rtl ? "المناقشات والاعتمادات" : "Approvals & Signatures"} />
+            {APPROVAL_CHAIN.map(([k, ar, en]) => (
+              <div key={k} style={{borderBottom:`1px solid ${C.line}`, padding:"10px 0"}}>
+                <div style={{fontWeight:800, color:C.head}}>{rtl?ar:en}</div>
+                <Row>
+                  <Field label={rtl?"الاسم":"Name"} value={camp.discuss[k]?.name} onChange={x=>set(`discuss.${k}.name`, x)} />
+                  <Field label={rtl?"الحالة":"Status"} value={camp.discuss[k]?.status} onChange={x=>set(`discuss.${k}.status`, x)} />
+                </Row>
+              </div>
+            ))}
+          </Card>);
+        }
+
+        function PermitsSection({ camp, set, rtl }) {
+          return (<Card><SectionHead num="١٣" title={rtl ? "التصاريح والموافقات" : "Permits"} />
+            <Field label={rtl?"الموقف القانوني والتصاريح الأمنية / الكنسية":"Legal & Administrative status"} value={camp.permitsNotes} onChange={x=>set("permitsNotes", x)} area={4} />
+          </Card>);
+        }
+
+        function ExpensesSection({ camp, set, rtl }) {
+          const ex = camp.expenses || [];
+          const add = () => set("expenses", [...ex, { id: uid(), date: "", item: "", amount: "" }]);
+          return (<Card><SectionHead num="١٤" title={rtl ? "المصروفات الفعلية" : "Actual Expenses Ledger"} />
+            <table style={tbl}>
+              <thead><tr><Th>{rtl?"التاريخ":"Date"}</Th><Th>{rtl?"البند":"Item"}</Th><Th>{rtl?"المبلغ":"Amount"}</Th><Th w={34}></Th></tr></thead>
+              <tbody>
+                {ex.map((r, idx) => (
+                  <tr key={r.id}>
+                    <td><CellInput type="date" v={r.date} on={x=>set(`expenses.${idx}.date`, x)} /></td>
+                    <td><CellInput v={r.item} on={x=>set(`expenses.${idx}.item`, x)} /></td>
+                    <td><CellInput type="number" v={r.amount} on={x=>set(`expenses.${idx}.amount`, x)} /></td>
+                    <td><DelBtn onClick={()=>set("expenses", ex.filter(i=>i.id!==r.id))} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{marginTop:8}}><Btn kind="ghost" small onClick={add}>+ {rtl?"إضافة مصروف":"Add record"}</Btn></div>
+          </Card>);
+        }
+
+        function EvalSection({ camp, set, rtl }) {
+          return (<Card><SectionHead num="١٥" title={rtl ? "التقييم الختامي" : "Camp Evaluation"} />
+            <Field label={rtl?"التغييرات في البرنامج":"Program deviations"} value={camp.evalNotes.programChange} onChange={x=>set("evalNotes.programChange", x)} area={3} />
+            <Field label={rtl?"التغييرات الموازنة المالية":"Budget deviations"} value={camp.evalNotes.budgetChange} onChange={x=>set("evalNotes.budgetChange", x)} area={3} />
+            <Field label={rtl?"أبرز الإيجابيات":"Key Positives"} value={camp.evalNotes.positives} onChange={x=>set("evalNotes.positives", x)} area={3} />
+            <Field label={rtl?"أبرز السلبيات والتحديات":"Key Negatives & Challenges"} value={camp.evalNotes.negatives} onChange={x=>set("evalNotes.negatives", x)} area={3} />
+          </Card>);
+        }
+
+        function App() {
+          const [lang, setLang] = useState("ar");
+          const L = lang === "ar" ? 0 : 1;
+          const rtl = lang === "ar";
+          const s = (k) => STR[k][L];
+
+          const [camp, setCamp] = useState(() => {
+            try { const saved = localStorage.getItem("sgwen_camp_v2"); if (saved) return JSON.parse(saved); } catch (e) {}
+            return blankCamp();
+          });
+          const [active, setActive] = useState("def");
+          const [savedFlag, setSavedFlag] = useState(false);
+
+          useEffect(() => {
+            const t = setTimeout(() => { try { localStorage.setItem("sgwen_camp_v2", JSON.stringify(camp)); setSavedFlag(true); setTimeout(() => setSavedFlag(false), 1400); } catch (e) {} }, 600);
+            return () => clearTimeout(t);
+          }, [camp]);
+
+          const set = useCallback((path, value) => {
+            setCamp((c) => { const n = JSON.parse(JSON.stringify(c)); let o = n; const ks = path.split("."); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = value; return n; });
+          }, []);
+
+          const days = camp.meta.isOneDay ? 1 : Math.max(1, Math.min(7, Number(camp.meta.days) || 1));
+          const dayArr = Array.from({ length: days }, (_, i) => i + 1);
+
+          const autoHead = useMemo(() => camp.db.filter((r) => (r.name || "").trim()).length, [camp.db]);
+          const headcount = camp.meta.headcountOverride !== "" && camp.meta.headcountOverride != null ? Number(camp.meta.headcountOverride) || 0 : autoHead;
+
+          const foodTotal = useMemo(() => { let t = 0; Object.values(camp.food || {}).forEach((slots) => Object.values(slots || {}).forEach((rows) => (rows || []).forEach((r) => (t += Number(r.cost) || 0)))); return t; }, [camp.food]);
+
+          const budget = useMemo(() => {
+            const n = (x) => Number(x) || 0; const b = camp.budget;
+            const totalExpenses = BUDGET_LINES.reduce((a, [k]) => a + n(b[k]), 0);
+            const perPerson = headcount > 0 ? totalExpenses / headcount : 0;
+            return { totalExpenses, perPerson, emergency: n(b.emergency) };
+          }, [camp.budget, headcount]);
+
+          const vision = useMemo(() => {
+            const perDay = {}; const totals = {}; ACT_TYPES.forEach(([k]) => (totals[k] = 0)); let grand = 0;
+            dayArr.forEach((d) => {
+              const dt = {}; ACT_TYPES.forEach(([k]) => (dt[k] = 0));
+              (camp.program[d]?.items || []).forEach((it) => { if (it.from && it.to && it.type && dt[it.type] != null) { const m = diffMins(it.from, it.to); dt[it.type] += m; totals[it.type] += m; grand += m; } });
+              perDay[d] = dt;
+            });
+            return { perDay, totals, grand };
+          }, [camp.program, dayArr]);
+
+          const exportPdf = () => window.print();
+          const newCamp = () => { if (confirm(rtl ? "بدء مخيم جديد فارغ؟ سيُمحى الحالي." : "Start a new blank camp? Current one will be cleared.")) { setCamp(blankCamp()); setActive("def"); } };
+
+          const saveFile = () => {
+            const name = (camp.meta.campName || "camp").replace(/[^\w\u0600-\u06FF-]+/g, "_").slice(0, 40);
+            const blob = new Blob([JSON.stringify(camp, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = `SGWEN_${name}.json`; a.click();
+            URL.revokeObjectURL(url);
+          };
+
+          const fileRef = useRef(null);
+          const loadFile = (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const data = JSON.parse(reader.result);
+                if (!data || !data.meta) throw new Error("bad");
+                const merged = { ...blankCamp(), ...data, meta: { ...blankCamp().meta, ...(data.meta || {}) } };
+                setCamp(merged); setActive("def");
+              } catch (err) { alert(rtl ? "تعذّر قراءة الملف. تأكد أنه ملف حفظ (.json) صادر من هذا التطبيق." : "Couldn't read the file. Make sure it's a .json save exported from this app."); }
+              finally { e.target.value = ""; }
+            };
+            reader.readAsText(file);
+          };
+
+          const ctx = { camp, set, setCamp, rtl, L, dayArr, headcount, autoHead, foodTotal, budget, vision };
+
+          return (
+            <div dir={rtl ? "rtl" : "ltr"} style={{ minHeight: "100vh", background: "#F4F1EC", color: C.ink, fontFamily: rtl ? "'Segoe UI','Tahoma',sans-serif" : "'Trebuchet MS','Segoe UI',sans-serif" }}>
+              <style>{`
+                *{box-sizing:border-box} ::placeholder{color:#C4BEB4}
+                input:focus,textarea:focus,select:focus{border-color:${C.orange}!important;box-shadow:0 0 0 3px ${C.orangeSoft}}
+                .navbtn:hover{background:${C.orangeSoft}}
+                @media print{.no-print{display:none!important} body{background:#fff} .print-area{box-shadow:none!important;border:none!important;max-width:100%!important} .pcard{break-inside:avoid;border:1px solid #ddd!important;box-shadow:none!important;page-break-inside:avoid}}
+              `}</style>
+
+              <header className="no-print" style={{ background: C.paper, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 30 }}>
+                <div style={{ maxWidth: 1180, margin: "0 auto", padding: "12px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <Logo />
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ fontSize: 19, fontWeight: 900, color: C.head, lineHeight: 1.1 }}>{s("appTitle")}<span style={{ marginInlineStart: 8, fontSize: 10, fontWeight: 900, color: "#fff", background: C.warn, padding: "2px 8px", borderRadius: 20, verticalAlign: "middle" }}>{s("draftBadge")}</span></div>
+                    <div style={{ fontSize: 11.5, color: C.muted }}>{s("org")}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", background: C.orangeSoft, borderRadius: 9, padding: 3 }}>{["ar", "en"].map((lg) => <button key={lg} onClick={() => setLang(lg)} style={{ border: "none", cursor: "pointer", fontWeight: 800, fontSize: 12.5, padding: "6px 12px", borderRadius: 7, fontFamily: "inherit", background: lang === lg ? C.orange : "transparent", color: lang === lg ? "#fff" : C.orangeDk }}>{lg === "ar" ? "عربي" : "EN"}</button>)}</div>
+                    <span style={{ fontSize: 11.5, color: savedFlag ? C.ok : C.muted, fontWeight: 700, minWidth: 70 }}>{savedFlag ? s("saved") : ""}</span>
+                    <Btn kind="line" small onClick={newCamp}>{s("newCamp")}</Btn>
+                    <Btn kind="line" small onClick={() => fileRef.current?.click()}>{s("loadFile")}</Btn>
+                    <Btn kind="ghost" small onClick={saveFile}>{s("saveFile")}</Btn>
+                    <input ref={fileRef} type="file" accept="application/json,.json" onChange={loadFile} style={{ display: "none" }} />
+                    <Btn kind="dk" small onClick={exportPdf}>{s("exportPdf")}</Btn>
+                  </div>
+                </div>
+                <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 18px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <MetaInput label={rtl ? "اسم المخيم" : "Camp name"} v={camp.meta.campName} on={(x) => set("meta.campName", x)} />
+                  <MetaInput label={rtl ? "الوحدة" : "Unit"} v={camp.meta.unit} on={(x) => set("meta.unit", x)} w={110} />
+                  <MetaInput label={rtl ? "من" : "From"} type="date" v={camp.meta.dateFrom} on={(x) => set("meta.dateFrom", x)} w={145} />
+                  <MetaInput label={rtl ? "إلى" : "To"} type="date" v={camp.meta.dateTo} on={(x) => set("meta.dateTo", x)} w={145} />
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: C.ink, paddingBottom: 6 }}><input type="checkbox" checked={camp.meta.isOneDay} onChange={(e) => set("meta.isOneDay", e.target.checked)} style={{ accentColor: C.orange, width: 16, height: 16 }} />{rtl ? "رحلة يوم واحد" : "One-day"}</label>
+                  {!camp.meta.isOneDay && <div style={{ minWidth: 140 }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 3 }}>{s("days")}: <b style={{ color: C.orangeDk }}>{days}</b></div><input type="range" min={1} max={7} value={days} onChange={(e) => set("meta.days", Number(e.target.value))} style={{ width: "100%", accentColor: C.orange }} /></div>}
+                  <div style={{ minWidth: 160 }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 3 }}>{rtl ? "العدد (تلقائي:" : "Headcount (auto:"} <b style={{ color: C.orangeDk }}>{autoHead}</b>)</div><input type="number" value={camp.meta.headcountOverride} onChange={(e) => set("meta.headcountOverride", e.target.value)} placeholder={rtl ? `${autoHead} — تجاوز يدوي` : `${autoHead} — override`} style={{ ...inp, padding: "7px 10px", fontSize: 13 }} /></div>
+                </div>
+              </header>
+
+              <div style={{ maxWidth: 1180, margin: "0 auto", padding: 18, display: "flex", gap: 18, alignItems: "flex-start" }}>
+                <nav className="no-print" style={{ width: 230, flexShrink: 0, position: "sticky", top: 168, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 16, padding: 8 }}>
+                  {SECTIONS.map(([key, label, num]) => <button key={key} className="navbtn" onClick={() => setActive(key)} style={{ width: "100%", textAlign: rtl ? "right" : "left", border: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, marginBottom: 2, background: active === key ? C.orange : "transparent", color: active === key ? "#fff" : C.ink, fontWeight: active === key ? 800 : 600, fontSize: 13.5 }}><span style={{ fontSize: 12, opacity: .8, minWidth: 22, fontWeight: 900 }}>{num}</span>{STR[label][L]}</button>)}
+                </nav>
+
+                <main className="print-area" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                  {active === "def" && <DefSection {...ctx} />}
+                  {active === "site" && <SiteSection {...ctx} />}
+                  {active === "sitemap" && <SiteMapSection {...ctx} />}
+                  {active === "database" && <DatabaseSection {...ctx} />}
+                  {active === "objectives" && <ObjectivesSection {...ctx} />}
+                  {active === "program" && <ProgramSection {...ctx} />}
+                  {active === "food" && <FoodSection {...ctx} />}
+                  {active === "gear" && <GearSection {...ctx} />}
+                  {active === "firstaid" && <FirstAidSection {...ctx} />}
+                  {active === "budget" && <BudgetSection {...ctx} />}
+                  {active === "vision" && <VisionSection {...ctx} />}
+                  {active === "discuss" && <DiscussSection {...ctx} />}
+                  {active === "permits" && <PermitsSection {...ctx} />}
+                  {active === "expenses" && <ExpensesSection {...ctx} />}
+                  {active === "evalS" && <EvalSection {...ctx} />}
+
+                  <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+                    <div style={{ display: "inline-block", borderTop: `1.5px solid ${C.orange}`, paddingTop: 6, color: C.credit, fontSize: 11, fontWeight: 700, letterSpacing: ".3px" }}>VII — Chef Christian Nachaat</div>
+                  </div>
+                </main>
+              </div>
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
